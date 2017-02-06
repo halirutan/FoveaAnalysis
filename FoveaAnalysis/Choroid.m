@@ -18,6 +18,7 @@ createFoveaProperties::usage = "createFoveaProperties[infoAssociation, octPath] 
 be used with processOCTFile[]";
 
 choroidModelFovea::usage = "choroidModelFovea[resultFile, octPath] models the fovea for choroid analysis.";
+choroidResultPlot::usage = "choroidResultPlot[info] shows the final image after modeling with segmentation of Marcus.";
 
 findOCT::usage = "findOCT[info, octPath] tries to locate info[\"VolFile\"].";
 
@@ -105,6 +106,25 @@ createFoveaProperties[info_?AssociationQ, octPath_?FileExistsQ] := Module[{
     ]
 ];
 
+choroidFovealThickness[info_Association] := Module[
+    {
+        ip, ah, start, end, ahFov
+    },
+
+    ah = info["RPE"] - info["AH"];
+    {start, end} = info["Radii"];
+    ip = ListInterpolation[ah, Method -> "Spline"];
+    ahFov = ah[[start ;; end]];
+    <|
+        "OCBIntegrated" ->
+                NIntegrate[ip[x], {x, start, end}] / Abs[end - start],
+        "OCBMean" -> Mean[ahFov],
+        "OCBTotal" -> Total[ahFov],
+        "OCBMedian" -> Median[ahFov],
+        "OCBStDev" -> StandardDeviation[ahFov]
+    |>
+];
+
 choroidModelFovea[resultFile_?FileExistsQ, octPath_?FileExistsQ] := Module[
     {
         info,
@@ -115,9 +135,9 @@ choroidModelFovea[resultFile_?FileExistsQ, octPath_?FileExistsQ] := Module[
         info = extractInfo[resultFile, octPath];
         prop = createFoveaProperties[info, octPath];
         result = processOCTFile[prop["VolFile"], prop, "PreferPropertyFile" -> True];
-        radii = Round[(foveaRadius /@ result["Parameters"]) * {1, -1} / prop["ScaleX"]];
-        <| result, "Radii" -> Last[result["Center"]] + radii |>
-
+        radii = Reverse[Round[(foveaRadius /@ result["Parameters"]) * {1, -1} / prop["ScaleX"]]];
+        result = Association[result, "Radii" -> Last[result["Center"]] + radii];
+        Association[result, "AHMeasure" -> choroidFovealThickness[result]]
     ]
 ];
 
@@ -134,21 +154,20 @@ choroidResultPlot[info_Association, octPath_String /; FileExistsQ[octPath]] := M
         Line[Transpose[{Range[0, Length[layer] - 1], 496 + layer / (info["ScaleZ"] * 1000)}]]
     ];
 
-    HighlightImage[img,
-        {
-            toImageCoordinates /@ Lookup[info, {"ILM", "RPE", "AH"}],
-            {Yellow,
-                Line[{{cx, 0}, {cx, ny}}],
-                Line[{{#,0},{}}]
+
+    HighlightImage[
+        HighlightImage[img,
+            {
+                toImageCoordinates /@ Lookup[info, {"ILM", "RPE", "AH"}],
+                {Yellow,
+                    Line[{{cx, 0}, {cx, ny}}],
+                    Line[{{#, 0}, {#, ny}}]& /@ info["Radii"]
+                }
             }
-
-
-        }
-
+        ],
+        Graphics[{Opacity[1], White, Text[Style[Column[Normal@info["AHMeasure"]],12], {nx / 5, ny - 50}]}]
     ]
-
-
-]
+];
 
 End[];
 EndPackage[];

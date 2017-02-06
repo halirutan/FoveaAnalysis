@@ -14,10 +14,6 @@ processOCTFile::usage = "processOCTFile  ";
 
 findCenter::usage = "findCenter[volFile] tries to calculate the center of the fovea.";
 
-IPCUFoveaCenterSegmentation::usage = "IPCUFoveaCenterSegmentation";
-InterpolateParallel::usage = "InterpolateParallel is an option for InterpolateFovea.";
-IPCUInterpolateLayer::usage;
-
 (* Options *)
 
 Begin[ "`Private`" ];
