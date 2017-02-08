@@ -13,6 +13,7 @@ the retinal surface that is used in the modelfit. For this, the properties \"Vol
 processOCTFile::usage = "processOCTFile  ";
 
 findCenter::usage = "findCenter[volFile] tries to calculate the center of the fovea.";
+monotonicInterpolation::usage = "monotonicInterpolation[vector, opts] interpolates the vector using Steffen monotonic interpolation.";
 
 (* Options *)
 
@@ -210,8 +211,7 @@ findCenter[rpe_?(MatrixQ[#, NumberQ] &), ilm_?(MatrixQ[#, NumberQ] &)] := Module
     ];
     If[Not[MatchQ[res, {_Integer, _Integer}]],
         Throw[findCenter],
-        <|"Center" -> res,
-            "CentralPixelHeight" -> Extract[ilm, res]|>
+        <|"Center" -> res, "CentralPixelHeight" ->  Extract[rpe, res] - Extract[ilm, res]|>
     ]
 ];
 
@@ -406,6 +406,53 @@ $foveaHeighAsPixelValueWithCenter := $foveaHeighAsPixelValueWithCenter = Compile
     RuntimeOptions -> "Speed",
     Parallelization -> True
 ];
+
+(* ::Section:: *)
+(* Monotonic interpolants *)
+
+Options[monotonicInterpolation] := {
+    PeriodicInterpolation -> False
+}
+
+steffenEnds[{{h1_, h2_}, {d1_, d2_}}] :=
+    With[{p = d1 + h1 (d1 - d2)/(h1 + h2)}, (Sign[p] + Sign[d1]) Min[
+        Abs[p]/2, Abs[d1]]]
+
+
+monotonicInterpolation[data_?(VectorQ[#, NumericQ] &), opts___?OptionQ] :=
+    monotonicInterpolation[Transpose[{Range[Length[data]], data}],
+        opts];
+monotonicInterpolation[data_?MatrixQ, OptionsPattern[]] :=
+    Module[{dTrans = Transpose[data], del, h, m, pp, optPeriodic,
+        overhangs},
+        optPeriodic = OptionValue[PeriodicInterpolation];
+        h = Differences[First[dTrans]];
+        del = Differences[Last[dTrans]]/h;
+        overhangs = If[optPeriodic === False, {1, -1}, {-1, 1}];
+        (* Note that overhangs in Partition and ListConvolve are defined differently*)
+        pp = Dot @@@
+            Transpose[
+                MapAt[Reverse, Map[Partition[#, 2, 1, {-1, 1}] &, {h, del}], {1, All}]]/
+            ListConvolve[{1, 1}, h, -1*overhangs];
+        If[optPeriodic === True,
+            del = ArrayPad[del, 1, "Periodic"]
+        ];
+        m = ListConvolve[{1, 1}, 2 UnitStep[del] - 1] *
+            MapThread[Min, {Partition[Abs[del], 2, 1], Abs[pp]/2}];
+        Interpolation[
+            {{#1}, ##2} & @@@ Transpose[Append[dTrans,
+                If[optPeriodic === True,
+                    m,
+                    Flatten[{
+                        steffenEnds[#[[{1, 2}]] & /@ {h, del}],
+                        m,
+                        steffenEnds[#[[{-1, -2}]] & /@ {h, del}]
+                    }]
+                ]
+            ]],
+            PeriodicInterpolation -> optPeriodic]
+    ]
+
 
 End[];
 
