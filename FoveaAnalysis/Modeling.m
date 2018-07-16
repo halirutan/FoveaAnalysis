@@ -1,6 +1,6 @@
 (* Mathematica Package *)
 
-BeginPackage["FoveaAnalysis`Modeling`"];
+BeginPackage["FoveaAnalysis`Modeling`", {"HSF`"}];
 
 
 (* Functions *)
@@ -84,9 +84,6 @@ DistributeDefinitions[modelCFunc, $samplingPoints];
 (* ::Subsection:: *)
 (* Interpolating a fovea *)
 
-heyexRawFileQ[file_String] := TrueQ[FileExistsQ[file] && FileExtension[file] === "vol"];
-heyexRawFileQ[___] := False;
-
 With[{selector = If[Abs[#1] < 1000 && Abs[#2] > 1000, #1, #2] &},
     prepareSegmentationDataCompiled := prepareSegmentationDataCompiled =
         Compile[{{ilmm, _Real, 1}, {rpee, _Real, 1}, {centralValue, _Real, 0}, {scaleZ, _Real, 0}},
@@ -114,13 +111,13 @@ interpolateFovea[prop_Association, opts : OptionsPattern[]] := With[{file = prop
     interpolateFovea[file, prop, opts] /; Not[MissingQ[file]]
 ];
 interpolateFovea::missV = "Missing center or central height value in property file.";
-interpolateFovea[file_?heyexRawFileQ, prop_Association, OptionsPattern[]] := Module[
+interpolateFovea[file_?HSFFileQ, prop_Association, OptionsPattern[]] := Module[
     {
         center = prop["Center"],
         rescaleQ = prop["RescaleOCTMagnification"],
         centralHeight = prop["CentralPixelHeight"],
-        header = Import[file, {"Heyex", "FileHeader"}],
-        data = {"ILM", "RPE"} /. Import[file, {"Heyex", "SegmentationData"}],
+        header = HSFInfo[file],
+        data = {"ILM", "RPE"} /. HSFLayerSegmentation[file],
         optParallel, scaleZ, sx, sy, scanFocus
     },
 
@@ -128,8 +125,7 @@ interpolateFovea[file_?heyexRawFileQ, prop_Association, OptionsPattern[]] := Mod
         Message[interpolateFovea::missV];
         Abort[];
     ];
-    scaleZ = "ScaleZ" /. header;
-    scanFocus = "ScanFocus" /. header;
+    {scaleZ, scanFocus} = {"ScaleZ", "ScanFocus"} /. header;
     data = (prepareSegmentationDataCompiled[##, centralHeight, scaleZ])& @@ Transpose[data];
     (* We need to be able to give the correct scaling of the OCT scan by ourselves *)
     (* possibly introducing a better altorithm for calculating the correct projection size on the retina *)
@@ -190,8 +186,8 @@ retinalHeight := retinalHeight = Compile[
     Parallelization -> True
 ];
 
-findCenter[vol_String /; FileExistsQ[vol]] := findCenter @@ Transpose[{"RPE", "ILM"} /.
-    Import[vol, {"Heyex", "SegmentationData"}]
+findCenter[vol_?HSFFileQ] := findCenter @@ Transpose[{"RPE", "ILM"} /.
+    HSFLayerSegmentation[vol]
 ];
 
 findCenter[rpe_?(MatrixQ[#, NumberQ] &), ilm_?(MatrixQ[#, NumberQ] &)] := Module[
@@ -243,7 +239,7 @@ processOCTFile::noWrite = "Unable to write property file `1` to disk.";
 processOCTFile[prop_Association, opts : OptionsPattern[]] := Module[{file, octPath},
     octPath = OptionValue["OCTPath"];
     file = prop["VolFile"];
-    If[FileExistsQ[file] && heyexRawFileQ[file],
+    If[FileExistsQ[file] && HSFFileQ[file],
         processOCTFile[file, prop, opts],
         If[DirectoryQ[octPath],
             With[{filesearch = FileNames[FileBaseName[file] <> ".vol", {octPath}, Infinity]},
@@ -258,7 +254,7 @@ processOCTFile[prop_Association, opts : OptionsPattern[]] := Module[{file, octPa
 ];
 
 processOCTFile[
-    file_?heyexRawFileQ,
+    file_?HSFFileQ,
     prop_Association, opts : OptionsPattern[]] := Module[
     {
         maxRadius,
@@ -305,7 +301,7 @@ processOCTFile::wrres = "Fit could not be calculated correctly for file `1`.";
 processOCTFile::winit = "Optionvalue for \"InitialPoints\" should be either Automatic or a list of points {{_,_,_,_}..} in the parameter space.";
 
 internalProcessOCTFile[
-    file_?heyexRawFileQ,
+    file_?HSFFileQ,
     center : {_Integer, _Integer},
     dphi_?NumericQ,
     xe_ /; 0 < xe < 5,
