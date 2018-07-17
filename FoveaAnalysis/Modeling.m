@@ -149,8 +149,7 @@ interpolateFovea[data_, {cy_, cx_}, {sy_, sx_}] := Module[
         nx, ny
     },
     {ny, nx} = Dimensions[data];
-    ListInterpolation[data, {sy ({1, ny} - cy),
-        sx ({1, nx} - cx)}, Method -> "Spline"]
+    ListInterpolation[data, {sy ({1, ny} - cy), sx ({1, nx} - cx)}, Method -> "Spline"]
 ];
 
 interpolateFovea[ddata_, {ccy_, ccx_}, {ssy_, ssx_}, sym_Symbol] := Module[
