@@ -12,7 +12,7 @@
 (* :Keywords: *)
 (* :Discussion: *)
 
-BeginPackage["FoveaAnalysis`Characteristics`"];
+BeginPackage["FoveaAnalysis`Characteristics`", {"FoveaAnalysis`Modeling`"}];
 
 foveaCharacteristic::usage = "foveaCharacteristic[charact_String] returns a function of foveal parameters and possibly r to calculate a specific foveal characteristic. The complete list of all available characteristics can be accessed by IPCUFovealCharacteristic[].";
 foveaRadius::usage = "foveaRadius[{m, s, g, a}, opt] calculates the radius where a certain percentage of the foveal bowl area is reached. The percentage can be adjusted with the \"Percentage\" option (default is 0.95). The foveal bowl area is the area from r=0 to the rim (which is the maximum of the foveal curve).";

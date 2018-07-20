@@ -1,7 +1,7 @@
 <component name="libraryTable">
   <library name="HSF" type="Mathematica">
     <CLASSES>
-      <root url="file://$PROJECT_DIR$/../spectralis-raw-data/Spectralis/HSF" />
+      <root url="file://$PROJECT_DIR$/../projects/spectralis-raw-data/Spectralis/HSF" />
     </CLASSES>
     <JAVADOC />
     <MATHEMATICA_LIBRARY />

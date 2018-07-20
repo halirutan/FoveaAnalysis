@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="ProjectRootManager" version="2" languageLevel="JDK_1_6">
+  <component name="ProjectRootManager" version="2" languageLevel="JDK_1_6" default="false" project-jdk-name="Mathematica 11.3.0.0.5917305" project-jdk-type="Mathematica SDK">
     <output url="file://$PROJECT_DIR$/out" />
   </component>
 </project>

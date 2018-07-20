@@ -131,8 +131,8 @@ interpolateFovea[file_?HSFFileQ, prop_Association, OptionsPattern[]] := Module[
     (* possibly introducing a better altorithm for calculating the correct projection size on the retina *)
     If[TrueQ[rescaleQ] && NumericQ[prop["CorneaAntR1"]] && NumericQ[scanFocus],
         Module[{q = garwayHeathRescale[prop["CorneaAntR1"], scanFocus]},
-        (* Attention: there is no way to know how large the scanned OCT region in degree was, because this is not *)
-        (* stored in the file. Need to hardcode 20 degree here TODO: I actually CAN calculate the degree *)
+            (* Attention: there is no way to know how large the scanned OCT region in degree was, because this is not *)
+            (* stored in the file. Need to hardcode 20 degree here TODO: I actually CAN calculate the degree *)
             {sx, sy} = 1.02302 * q * 20 / (Reverse[Dimensions[data]] - {0, 1});
         ],
         {sx, sy} = { "ScaleX" , "Distance"} /. header
@@ -206,7 +206,7 @@ findCenter[rpe_?(MatrixQ[#, NumberQ] &), ilm_?(MatrixQ[#, NumberQ] &)] := Module
     ];
     If[Not[MatchQ[res, {_Integer, _Integer}]],
         Throw[findCenter],
-        <|"Center" -> res, "CentralPixelHeight" ->  Extract[rpe, res] - Extract[ilm, res]|>
+        <|"Center" -> res, "CentralPixelHeight" -> Extract[rpe, res] - Extract[ilm, res]|>
     ]
 ];
 
@@ -410,8 +410,8 @@ Options[monotonicInterpolation] := {
 }
 
 steffenEnds[{{h1_, h2_}, {d1_, d2_}}] :=
-    With[{p = d1 + h1 (d1 - d2)/(h1 + h2)}, (Sign[p] + Sign[d1]) Min[
-        Abs[p]/2, Abs[d1]]]
+    With[{p = d1 + h1 (d1 - d2) / (h1 + h2)}, (Sign[p] + Sign[d1]) Min[
+        Abs[p] / 2, Abs[d1]]]
 
 
 monotonicInterpolation[data_?(VectorQ[#, NumericQ] &), opts___?OptionQ] :=
@@ -422,18 +422,18 @@ monotonicInterpolation[data_?MatrixQ, OptionsPattern[]] :=
         overhangs},
         optPeriodic = OptionValue[PeriodicInterpolation];
         h = Differences[First[dTrans]];
-        del = Differences[Last[dTrans]]/h;
+        del = Differences[Last[dTrans]] / h;
         overhangs = If[optPeriodic === False, {1, -1}, {-1, 1}];
         (* Note that overhangs in Partition and ListConvolve are defined differently*)
         pp = Dot @@@
             Transpose[
-                MapAt[Reverse, Map[Partition[#, 2, 1, {-1, 1}] &, {h, del}], {1, All}]]/
-            ListConvolve[{1, 1}, h, -1*overhangs];
+                MapAt[Reverse, Map[Partition[#, 2, 1, {-1, 1}] &, {h, del}], {1, All}]] /
+            ListConvolve[{1, 1}, h, -1 * overhangs];
         If[optPeriodic === True,
             del = ArrayPad[del, 1, "Periodic"]
         ];
         m = ListConvolve[{1, 1}, 2 UnitStep[del] - 1] *
-            MapThread[Min, {Partition[Abs[del], 2, 1], Abs[pp]/2}];
+            MapThread[Min, {Partition[Abs[del], 2, 1], Abs[pp] / 2}];
         Interpolation[
             {{#1}, ##2} & @@@ Transpose[Append[dTrans,
                 If[optPeriodic === True,
@@ -447,6 +447,30 @@ monotonicInterpolation[data_?MatrixQ, OptionsPattern[]] :=
             ]],
             PeriodicInterpolation -> optPeriodic]
     ]
+
+(* ::Section:: *)
+(* Dynamic Visualizations *)
+
+dynamicModel[] := dynamicModel[{1.0, 0.5, 2.0, 0.07}];
+dynamicModel[{\[Mu]Init_, \[Sigma]Init_, \[Gamma]Init_, \[Alpha]Init_}] := Block[
+    {
+        \[Mu], \[Sigma], \[Gamma], \[Alpha], x
+    },
+    With[
+        {
+            m = model[\[Mu], \[Sigma], \[Gamma], \[Alpha], x],
+            pRanges = "ParameterRanges" /. Options[processOCTFile]
+        },
+        Manipulate[
+            Plot[m, {x, 0, 3},
+                PlotRange -> {Automatic, {-.2, 0.3}}],
+            {{\[Mu], \[Mu]Init, "\[Mu]" }, pRanges[[1, 1]], pRanges[[1, 2]]},
+            {{\[Sigma], \[Sigma]Init, "\[Sigma]" }, pRanges[[2, 1]], pRanges[[2, 2]]},
+            {{\[Gamma], \[Gamma]Init, "\[Gamma]" }, pRanges[[3, 1]], pRanges[[3, 2]]},
+            {{\[Alpha], \[Alpha]Init, "\[Alpha]" }, pRanges[[4, 1]], pRanges[[4, 2]]}]
+    ]
+];
+
 
 
 End[];
