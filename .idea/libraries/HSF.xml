@@ -1,5 +1,5 @@
 <component name="libraryTable">
-  <library name="HSF" type="Mathematica">
+  <library name="HSF">
     <CLASSES>
       <root url="file://$PROJECT_DIR$/../projects/spectralis-raw-data/Spectralis/HSF" />
     </CLASSES>

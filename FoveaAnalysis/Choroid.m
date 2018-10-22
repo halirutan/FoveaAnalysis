@@ -12,10 +12,9 @@
 (* :Keywords: *)
 (* :Discussion: *)
 
-BeginPackage["FoveaAnalysis`Choroid`", {"FoveaAnalysis`Modeling`", "FoveaAnalysis`Characteristics`"}];
+BeginPackage["FoveaAnalysis`Choroid`", {"FoveaAnalysis`Modeling`", "FoveaAnalysis`Characteristics`", "HSF`"}];
 
-createFoveaProperties::usage = "createFoveaProperties[infoAssociation, octPath] builds info-structure that can directly \
-be used with processOCTFile[]";
+createFoveaProperties::usage = "createFoveaProperties[infoAssociation, octPath] builds info-structure that can directly be used with processOCTFile[]";
 
 choroidModelFovea::usage = "choroidModelFovea[resultFile, octPath] models the fovea for choroid analysis.";
 choroidResultPlot::usage = "choroidResultPlot[info] shows the final image after modeling with segmentation of Marcus.";
@@ -57,7 +56,7 @@ extractInfoFromOCT[file_, path_] := Module[{files},
     {files[[1]], extractInfoFromOCT[files[[1]]]}
 ];
 extractInfoFromOCT[file_?FileExistsQ] := Module[{elements},
-    elements = Import[file, {"Heyex", "FileHeader", $octInfo}];
+    elements = HSFInfo[file][$octInfo];
     AssociationThread[$octInfo -> elements]
 ];
 
@@ -100,7 +99,7 @@ createFoveaProperties[info_?AssociationQ, octPath_?FileExistsQ] := Module[{
             "VolFile" -> file,
             "RescaleOCTMagnification" -> False,
             "AngleStepSize" -> Pi,
-            "ParameterRanges" -> ("ParameterRanges" /. Options[processOCTFile]),
+            "ParameterRanges" -> ("ParameterRanges" /. Options[FindFoveaModelParameters]),
             "MaxRadius" -> 2
         |>
     ]
@@ -134,8 +133,8 @@ choroidModelFovea[resultFile_?FileExistsQ, octPath_?FileExistsQ] := Module[
     Catch[
         info = extractInfo[resultFile, octPath];
         prop = createFoveaProperties[info, octPath];
-        result = processOCTFile[prop["VolFile"], prop, "PreferPropertyFile" -> True];
-        radii = Reverse[Round[(foveaRadius /@ result["Parameters"]) * {1, -1} / prop["ScaleX"]]];
+        result = FindFoveaModelParameters[prop["VolFile"], prop, "PreferPropertyFile" -> True];
+        radii = Reverse[Round[(FoveaRadius /@ result["Parameters"]) * {1, -1} / prop["ScaleX"]]];
         result = Association[result, "Radii" -> Last[result["Center"]] + radii];
         Association[result, "AHMeasure" -> choroidFovealThickness[result]]
     ]
@@ -147,7 +146,7 @@ choroidResultPlot[info_Association, octPath_String /; FileExistsQ[octPath]] := M
         toImageCoordinates,
         img, nx, ny, cx, cy
     },
-    img = Import[file, {"Heyex", "Images", info["Center"] // First}];
+    img = HSFBScanImage[file, info["Center"] // First];
     {nx, ny} = ImageDimensions[img];
     {cy, cx} = info["Center"];
     toImageCoordinates = Function[layer,

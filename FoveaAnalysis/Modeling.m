@@ -4,16 +4,15 @@ BeginPackage["FoveaAnalysis`Modeling`", {"HSF`"}];
 
 
 (* Functions *)
-foveaModel::usage = "foveaModel[\[Mu], \[Sigma], \[Gamma], \[Alpha], x] returns the model function for the fovea.";
-
-interpolateFovea::usage = "interpolateFovea[prop, opt] uses the information of a foveal fit property file to interpolate \
-the retinal surface that is used in the modelfit. For this, the properties \"VolFile\", \"Center\" and \
-\"CentralPixelHeight\" must be present in the property file.";
-
-processOCTFile::usage = "processOCTFile  ";
-
-findCenter::usage = "findCenter[volFile] tries to calculate the center of the fovea.";
-monotonicInterpolation::usage = "monotonicInterpolation[vector, opts] interpolates the vector using Steffen monotonic interpolation.";
+FoveaModel::usage = "FoveaModel[\[Mu], \[Sigma], \[Gamma], \[Alpha], x] returns the model function for the fovea.";
+OCTInterpolation::usage = "OCTInterpolation[prop, opt] uses the information of a foveal fit property file to interpolate the retinal surface that is used in the model-fit." <>
+    "For this, the properties \"VolFile\", \"Center\" and \"CentralPixelHeight\" must be present in the property file.";
+FindFoveaModelParameters::usage = "FindFoveaModelParameters[properties] finds the best fitting fovea model parameters for the dataset. " <>
+    "\"properties\" is an association that must contain a valid entry for \"VolFile\" that specifies the Heidelberg OCT " <>
+    "scan exported in raw HSF format that must contain the segmentation for the ILM and the RPE layer. " <>
+    "Additionally, the properties need to include a \"Center\" value that specifies the position of the fovea pit.";
+FindFoveaCenter::usage = "FindFoveaCenter[volFile] tries to calculate the center of the fovea.";
+SteffenInterpolation::usage = "SteffenInterpolation[vector, opts] interpolates the vector using Steffen monotonic interpolation.";
 
 (* Options *)
 
@@ -22,22 +21,22 @@ Begin[ "`Private`" ];
 (* ::Subsection:: *)
 (* The mathematical model used *)
 
-model[\[Mu]_, \[Sigma]_, \[Gamma]_, \[Alpha]_, x_] := (x^\[Gamma] * \[Mu] * \[Sigma]^2) * Exp[- x^\[Gamma] * \[Mu]] + \[Alpha] (1 - Exp[- x^\[Gamma] * \[Mu]]);
-
-
-foveaModel[m_, s_, g_, a_, r_] := model[m, s, g, a, r];
-foveaModel[{m_, s_, g_, a_}, r_] := model[m, s, g, a, r];
+model[m_, s_, g_, a_, x_] := (x^g * m * s^2) * Exp[- x^g * m] + a (1 - Exp[- x^g * m]);
+FoveaModel[m_, s_, g_, a_, r_] := model[m, s, g, a, r];
+FoveaModel[{m_, s_, g_, a_}, r_] := model[m, s, g, a, r];
 
 DistributeDefinitions[model];
-
-(* For fast processing I compile the model function *)
-modelC := (modelC = Compile[{{m, _Real, 0}, {s, _Real, 0}, {g, _Real,
-    0}, {a, _Real, 0}, {x, _Real, 0}}, # ,
-    CompilationTarget -> "C",
-    Parallelization -> True,
-    RuntimeAttributes -> {Listable},
-    RuntimeOptions -> "Speed"
-]&[model[m, s, g, a, x]]);
+Block[
+    {m, s, g, a, x},
+    (* For fast processing I compile the model function *)
+    modelC := (modelC = Compile[{{m, _Real, 0}, {s, _Real, 0}, {g, _Real,
+        0}, {a, _Real, 0}, {x, _Real, 0}}, # ,
+        CompilationTarget -> "C",
+        Parallelization -> True,
+        RuntimeAttributes -> {Listable},
+        RuntimeOptions -> "Speed"
+    ]&[model[m, s, g, a, x]])
+];
 
 (* some wrappers and the target function for fitting the model onto a given 
    InterpolatingFunction. See IPCUProcessOCTFile[] 
@@ -62,8 +61,8 @@ With[{expr = model[m, s, g, a, x]},
     ];
 ];
 
-getTargetFuncPoints[phi_, fovea_, xend_, nSamplingPoints_] := Transpose[
-    Table[{x, fovea[x * Sin[phi], x * Cos[phi]]}, {x, 0, xend, N[xend / (nSamplingPoints - 1)]}]
+getTargetFuncPoints[phi_, fovea_, rEnd_, nSamplingPoints_] := Transpose[
+    Table[{r, fovea[r * Sin[phi], r * Cos[phi]]}, {r, 0, rEnd, N[rEnd / (nSamplingPoints - 1)]}]
 ];
 
 ParallelEvaluate[
@@ -102,16 +101,16 @@ With[{selector = If[Abs[#1] < 1000 && Abs[#2] > 1000, #1, #2] &},
 garwayHeathRescale[corneaAntR1_, ametropia_] := 1 / (17.21 / corneaAntR1 + 1.247 + ametropia / 17.455);
 
 
-Options[interpolateFovea] = {
+Options[OCTInterpolation] = {
     "InterpolateParallel" -> False
 };
 
 
-interpolateFovea[prop_Association, opts : OptionsPattern[]] := With[{file = prop["VolFile"]},
-    interpolateFovea[file, prop, opts] /; Not[MissingQ[file]]
+OCTInterpolation[prop_Association, opts : OptionsPattern[]] := With[{file = prop["VolFile"]},
+    OCTInterpolation[file, prop, opts] /; Not[MissingQ[file]]
 ];
-interpolateFovea::missV = "Missing center or central height value in property file.";
-interpolateFovea[file_?HSFFileQ, prop_Association, OptionsPattern[]] := Module[
+OCTInterpolation::missV = "Missing center or central height value in property file.";
+OCTInterpolation[file_?HSFFileQ, prop_Association, OptionsPattern[]] := Module[
     {
         center = prop["Center"],
         rescaleQ = prop["RescaleOCTMagnification"],
@@ -122,7 +121,7 @@ interpolateFovea[file_?HSFFileQ, prop_Association, OptionsPattern[]] := Module[
     },
 
     If[MissingQ[center] || MissingQ[centralHeight],
-        Message[interpolateFovea::missV];
+        Message[OCTInterpolation::missV];
         Abort[];
     ];
     {scaleZ, scanFocus} = {"ScaleZ", "ScanFocus"} /. header;
@@ -139,12 +138,12 @@ interpolateFovea[file_?HSFFileQ, prop_Association, OptionsPattern[]] := Module[
     ];
     optParallel = OptionValue["InterpolateParallel"];
     If[ optParallel =!= False && Head[optParallel] === Symbol,
-        interpolateFovea[data, center, {sy, sx}, optParallel],
-        interpolateFovea[data, center, {sy, sx}]
+        OCTInterpolation[data, center, {sy, sx}, optParallel],
+        OCTInterpolation[data, center, {sy, sx}]
     ]
 ];
 
-interpolateFovea[data_, {cy_, cx_}, {sy_, sx_}] := Module[
+OCTInterpolation[data_, {cy_, cx_}, {sy_, sx_}] := Module[
     {
         nx, ny
     },
@@ -152,7 +151,7 @@ interpolateFovea[data_, {cy_, cx_}, {sy_, sx_}] := Module[
     ListInterpolation[data, {sy ({1, ny} - cy), sx ({1, nx} - cx)}, Method -> "Spline"]
 ];
 
-interpolateFovea[ddata_, {ccy_, ccx_}, {ssy_, ssx_}, sym_Symbol] := Module[
+OCTInterpolation[ddata_, {ccy_, ccx_}, {ssy_, ssx_}, sym_Symbol] := Module[
     {
         nnx, nny
     },
@@ -185,11 +184,11 @@ retinalHeight := retinalHeight = Compile[
     Parallelization -> True
 ];
 
-findCenter[vol_?HSFFileQ] := findCenter @@ Transpose[{"RPE", "ILM"} /.
+FindFoveaCenter[vol_?HSFFileQ] := FindFoveaCenter @@ Transpose[{"RPE", "ILM"} /.
     HSFLayerSegmentation[vol]
 ];
 
-findCenter[rpe_?(MatrixQ[#, NumberQ] &), ilm_?(MatrixQ[#, NumberQ] &)] := Module[
+FindFoveaCenter[rpe_?(MatrixQ[#, NumberQ] &), ilm_?(MatrixQ[#, NumberQ] &)] := Module[
     {
         x, y, min = Infinity, res = $Failed, xmin = 1, xmax, ymin = 1, ymax,
         data = GaussianFilter[retinalHeight[rpe, ilm], Dimensions[rpe] / 50.]
@@ -205,7 +204,7 @@ findCenter[rpe_?(MatrixQ[#, NumberQ] &), ilm_?(MatrixQ[#, NumberQ] &)] := Module
         {x, xmin, xmax, 1}
     ];
     If[Not[MatchQ[res, {_Integer, _Integer}]],
-        Throw[findCenter],
+        Throw[FindFoveaCenter],
         <|"Center" -> res, "CentralPixelHeight" -> Extract[rpe, res] - Extract[ilm, res]|>
     ]
 ];
@@ -214,7 +213,7 @@ findCenter[rpe_?(MatrixQ[#, NumberQ] &), ilm_?(MatrixQ[#, NumberQ] &)] := Module
 (* ::Subsection:: *)
 (*Processing the fitting of an a fovea OCT dataset*)
 
-Options[processOCTFile] = {
+Options[FindFoveaModelParameters] = {
     "PropertiesPath" -> Automatic,
     "ParameterRanges" -> {{0.01, 12.0}, {0.01, 2.0}, {1.0, 10.0}, {-1, 1}},
     "AngleStepSize" -> Pi / 2,
@@ -224,35 +223,35 @@ Options[processOCTFile] = {
     "OCTPath" -> Automatic
 };
 
-processOCTFile::noOCT = "Could not find OCT file";
-processOCTFile::moreOCT = "More than one matching OCT file was found. Please specify which one you want to use.";
-processOCTFile::nocentf = ",The properties are missing the center of the fovea.";
-processOCTFile::nocent = "`1` is neither a string denoting the path to the \
+FindFoveaModelParameters::noOCT = "Could not find OCT file";
+FindFoveaModelParameters::moreOCT = "More than one matching OCT file was found. Please specify which one you want to use.";
+FindFoveaModelParameters::nocentf = ",The properties are missing the center of the fovea.";
+FindFoveaModelParameters::nocent = "`1` is neither a string denoting the path to the \
 center file nor a tuple {cx,cy} of integers defining the center directly.";
-processOCTFile::wrongout = "`1` is not a valid output directory.";
-processOCTFile::pathNoString = "The path `1` should be a string. Using the default location.";
-processOCTFile::noCenter = "The properties file `1` does not contain a valid \"Center\" required for fitting a fovea.";
-processOCTFile::wrongParam = "Value for parameter `1` cannot be `2`";
-processOCTFile::noWrite = "Unable to write property file `1` to disk.";
+FindFoveaModelParameters::wrongout = "`1` is not a valid output directory.";
+FindFoveaModelParameters::pathNoString = "The path `1` should be a string. Using the default location.";
+FindFoveaModelParameters::noCenter = "The properties file `1` does not contain a valid \"Center\" required for fitting a fovea.";
+FindFoveaModelParameters::wrongParam = "Value for parameter `1` cannot be `2`";
+FindFoveaModelParameters::noWrite = "Unable to write property file `1` to disk.";
 
-processOCTFile[prop_Association, opts : OptionsPattern[]] := Module[{file, octPath},
+FindFoveaModelParameters[prop_Association, opts : OptionsPattern[]] := Module[{file, octPath},
     octPath = OptionValue["OCTPath"];
     file = prop["VolFile"];
     If[FileExistsQ[file] && HSFFileQ[file],
-        processOCTFile[file, prop, opts],
+        FindFoveaModelParameters[file, prop, opts],
         If[DirectoryQ[octPath],
-            With[{filesearch = FileNames[FileBaseName[file] <> ".vol", {octPath}, Infinity]},
-                Switch[Length[filesearch],
-                    0, Message[processoctfile::nooct]; Abort[],
-                    1, processOCTFile[First[filesearch], prop, opts],
-                    _, Message[processOCTFile::moreOCT]; Abort[]
+            With[{fileSearch = FileNames[FileBaseName[file] <> ".vol", {octPath}, Infinity]},
+                Switch[Length[fileSearch],
+                    0, Message[FindFoveaModelParameters::nooct]; Abort[],
+                    1, FindFoveaModelParameters[First[fileSearch], prop, opts],
+                    _, Message[FindFoveaModelParameters::moreOCT]; Abort[]
                 ]
             ]
         ]
     ]
 ];
 
-processOCTFile[
+FindFoveaModelParameters[
     file_?HSFFileQ,
     prop_Association, opts : OptionsPattern[]] := Module[
     {
@@ -267,103 +266,102 @@ processOCTFile[
     initPoints = OptionValue["InitialPoints"];
 
     If[MissingQ[prop["Center"]],
-        Message[processOCTFile::noCenter];
+        Message[FindFoveaModelParameters::noCenter];
         Return[$Failed]
     ];
     maxRadius = If[preferPropQ, prop["MaxRadius"], OptionValue["MaxRadius"]];
     If[Not[NumericQ[maxRadius]] || maxRadius <= 0,
-        Message[processOCTFile::wrongParam, "MaxRadius", maxRadius];
+        Message[FindFoveaModelParameters::wrongParam, "MaxRadius", maxRadius];
         Return[$Failed]
     ];
     center = prop["Center"];
     If[Not[MatchQ[center, {_Integer, _Integer}]],
-        Message[processOCTFile::wrongParam, "Center", center];
+        Message[FindFoveaModelParameters::wrongParam, "Center", center];
         Return[$Failed]
     ];
     angleStepSize = If[preferPropQ, prop["AngleStepSize"], OptionValue["AngleStepSize"]];
     If[Not[NumericQ[angleStepSize]] || angleStepSize <= 0 || angleStepSize >= 2Pi,
-        Message[processOCTFile::wrongParam, "AngleStepSize", angleStepSize];
+        Message[FindFoveaModelParameters::wrongParam, "AngleStepSize", angleStepSize];
         Return[$Failed]
     ];
     parameterRanges = If[preferPropQ, prop["ParameterRanges"], OptionValue["ParameterRanges"]];
     If[Not[MatrixQ[parameterRanges]] || Dimensions[parameterRanges] != {4, 2},
-        Message[processOCTFile::wrongParam, "ParameterRanges", parameterRanges];
+        Message[FindFoveaModelParameters::wrongParam, "ParameterRanges", parameterRanges];
         Return[$Failed]
     ];
 
-    internalProcessOCTFile[file, center, angleStepSize, maxRadius, parameterRanges, prop, initPoints]
+    iFindFoveaParameters[file, center, angleStepSize, maxRadius, parameterRanges, prop, initPoints]
 
 ];
 
 
-processOCTFile::wrres = "Fit could not be calculated correctly for file `1`.";
-processOCTFile::winit = "Optionvalue for \"InitialPoints\" should be either Automatic or a list of points {{_,_,_,_}..} in the parameter space.";
+FindFoveaModelParameters::wrres = "Fit could not be calculated correctly for file `1`.";
+FindFoveaModelParameters::winit = "Optionvalue for \"InitialPoints\" should be either Automatic or a list of points {{_,_,_,_}..} in the parameter space.";
 
-internalProcessOCTFile[
+iFindFoveaParameters[
     file_?HSFFileQ,
     center : {_Integer, _Integer},
     dphi_?NumericQ,
     xe_ /; 0 < xe < 5,
     parameterRanges_,
     prop_Association,
-    deInit_] :=
-    Module[
-        {
-            foveaInterpol,
-            minm, maxm, mins, maxs, ming, maxg, mina, maxa, (* min and max values for the parameters *)
-            xend = xe,
-            initialPoints = prop["Parameters"],
-            dataPoints, data, phi, res, method
-        },
+    deInit_] := Module[
+    {
+        foveaInterpol,
+        minm, maxm, mins, maxs, ming, maxg, mina, maxa, (* min and max values for the parameters *)
+        xend = xe,
+        initialPoints = prop["Parameters"],
+        dataPoints, data, phi, res, method
+    },
 
-        foveaInterpol = interpolateFovea[file, prop];
-        {{minm, maxm}, {mins, maxs}, {ming, maxg}, {mina, maxa}} = parameterRanges;
+    foveaInterpol = OCTInterpolation[file, prop];
+    {{minm, maxm}, {mins, maxs}, {ming, maxg}, {mina, maxa}} = parameterRanges;
 
-        (* Differential Evolution needs some good starting agents. If the prop file already contains an old fit, we will use 20 *)
-        (* of them. If there are less then 20 or none in the prop-file, we will use random values which fulfill our constrains *)
-        (* of the parameter ranges. *)
-        If[ Not[MatchQ[deInit, {{_, _, _, _}..}]],
-            With[{randPoints = Transpose[RandomReal[#, 20]& /@ parameterRanges]},
-                If[MatchQ[initialPoints, {{_, _, _, _}..}],
-                    initialPoints = Join[initialPoints, Take[randPoints, Max[0, 20 - Length[initialPoints]]]],
-                    initialPoints = randPoints
-                ]
-            ], (* else *)
-            initialPoints = deInit;
-        ];
+    (* Differential Evolution needs some good starting agents. If the prop file already contains an old fit, we will use 20 *)
+    (* of them. If there are less then 20 or none in the prop-file, we will use random values which fulfill our constrains *)
+    (* of the parameter ranges. *)
+    If[ Not[MatchQ[deInit, {{_, _, _, _}..}]],
+        With[{randPoints = Transpose[RandomReal[#, 20]& /@ parameterRanges]},
+            If[MatchQ[initialPoints, {{_, _, _, _}..}],
+                initialPoints = Join[initialPoints, Take[randPoints, Max[0, 20 - Length[initialPoints]]]],
+                initialPoints = randPoints
+            ]
+        ], (* else *)
+        initialPoints = deInit;
+    ];
 
-        method = {"DifferentialEvolution", "InitialPoints" -> initialPoints, "ScalingFactor" -> .8, "CrossProbability" -> .1};
+    method = {"DifferentialEvolution", "InitialPoints" -> initialPoints, "ScalingFactor" -> .8, "CrossProbability" -> .1};
 
-        DistributeDefinitions[minm, mins, ming, mina, maxm, maxs, maxg, maxa, method];
-        Block[{m, s, g, a, outputFile},
-            dataPoints = Table[getTargetFuncPoints[phi, foveaInterpol, xend, $samplingPoints], {phi, 0, 2 Pi - dphi, N[dphi]}];
-            res = ParallelTable[
-                Module[{optimum},
-                    initTargetFunc[data];
-                    optimum = NMinimize[{callTargetFunc[m, s, g, a],
-                        And[
-                            minm < m < maxm,
-                            mins < s < maxs,
-                            ming < g < maxg,
-                            mina < a < maxa
-                        ]
-                    }, {m, s, g, a}, Method -> method ];
-                    clearTargetFunc[];
-                    optimum
-                ], {data, dataPoints}];
-            (* Clean the subkernels from debris *)
-            ParallelEvaluate[Remove[minm, mins, ming, mina, maxm, maxs, maxg, maxa]];
-            Join[prop,
-                Association[
-                    "Parameters" -> res[[All, 2, All, 2]],
-                    "Errors" -> res[[All, 1]],
-                    "AngleStepSize" -> N[dphi],
-                    "MaxRadius" -> N[xend],
-                    "ParameterRanges" -> parameterRanges
-                ]
+    DistributeDefinitions[minm, mins, ming, mina, maxm, maxs, maxg, maxa, method];
+    Block[{m, s, g, a, outputFile},
+        dataPoints = Table[getTargetFuncPoints[phi, foveaInterpol, xend, $samplingPoints], {phi, 0, 2 Pi - dphi, N[dphi]}];
+        res = ParallelTable[
+            Module[{optimum},
+                initTargetFunc[data];
+                optimum = NMinimize[{callTargetFunc[m, s, g, a],
+                    And[
+                        minm < m < maxm,
+                        mins < s < maxs,
+                        ming < g < maxg,
+                        mina < a < maxa
+                    ]
+                }, {m, s, g, a}, Method -> method ];
+                clearTargetFunc[];
+                optimum
+            ], {data, dataPoints}];
+        (* Clean the subkernels from debris *)
+        ParallelEvaluate[Remove[minm, mins, ming, mina, maxm, maxs, maxg, maxa]];
+        Join[prop,
+            Association[
+                "Parameters" -> res[[All, 2, All, 2]],
+                "Errors" -> res[[All, 1]],
+                "AngleStepSize" -> N[dphi],
+                "MaxRadius" -> N[xend],
+                "ParameterRanges" -> parameterRanges
             ]
         ]
-    ];
+    ]
+];
 
 
 
@@ -377,7 +375,7 @@ $foveaHeight := $foveaHeight = Compile[{{ilm, _Real, 1}, {rpe, _Real, 1}},
     Parallelization -> True
 ];
 
-$foveaHeighAsPixelValue := $foveaHeighAsPixelValue = Compile[
+$foveaHeightAsPixelValue := $foveaHeightAsPixelValue = Compile[
     {
         {ilm, _Real, 1},
         {rpe, _Real, 1}
@@ -389,7 +387,7 @@ $foveaHeighAsPixelValue := $foveaHeighAsPixelValue = Compile[
     Parallelization -> True
 ];
 
-$foveaHeighAsPixelValueWithCenter := $foveaHeighAsPixelValueWithCenter = Compile[
+$foveaHeightAsPixelValueWithCenter := $foveaHeightAsPixelValueWithCenter = Compile[
     {
         {ilm, _Real, 1},
         {rpe, _Real, 1},
@@ -405,61 +403,62 @@ $foveaHeighAsPixelValueWithCenter := $foveaHeighAsPixelValueWithCenter = Compile
 (* ::Section:: *)
 (* Monotonic interpolants *)
 
-Options[monotonicInterpolation] := {
+Options[SteffenInterpolation] := {
     PeriodicInterpolation -> False
-}
+};
 
-steffenEnds[{{h1_, h2_}, {d1_, d2_}}] :=
-    With[{p = d1 + h1 (d1 - d2) / (h1 + h2)}, (Sign[p] + Sign[d1]) Min[
-        Abs[p] / 2, Abs[d1]]]
-
-
-monotonicInterpolation[data_?(VectorQ[#, NumericQ] &), opts___?OptionQ] :=
-    monotonicInterpolation[Transpose[{Range[Length[data]], data}],
-        opts];
-monotonicInterpolation[data_?MatrixQ, OptionsPattern[]] :=
-    Module[{dTrans = Transpose[data], del, h, m, pp, optPeriodic,
-        overhangs},
-        optPeriodic = OptionValue[PeriodicInterpolation];
-        h = Differences[First[dTrans]];
-        del = Differences[Last[dTrans]] / h;
-        overhangs = If[optPeriodic === False, {1, -1}, {-1, 1}];
-        (* Note that overhangs in Partition and ListConvolve are defined differently*)
-        pp = Dot @@@
-            Transpose[
-                MapAt[Reverse, Map[Partition[#, 2, 1, {-1, 1}] &, {h, del}], {1, All}]] /
-            ListConvolve[{1, 1}, h, -1 * overhangs];
-        If[optPeriodic === True,
-            del = ArrayPad[del, 1, "Periodic"]
-        ];
-        m = ListConvolve[{1, 1}, 2 UnitStep[del] - 1] *
-            MapThread[Min, {Partition[Abs[del], 2, 1], Abs[pp] / 2}];
-        Interpolation[
-            {{#1}, ##2} & @@@ Transpose[Append[dTrans,
-                If[optPeriodic === True,
+steffenEnds[{{h1_, h2_}, {d1_, d2_}}] := With[{p = d1 + h1 (d1 - d2) / (h1 + h2)}, (Sign[p] + Sign[d1]) Min[ Abs[p] / 2, Abs[d1]]];
+SteffenInterpolation[data_?(VectorQ[#, NumericQ] &), opts___?OptionQ] := SteffenInterpolation[Transpose[{Range[Length[data]], data}], opts];
+SteffenInterpolation[data_?MatrixQ, OptionsPattern[]] := Module[
+    {
+        dTrans = Transpose[data],
+        del,
+        h,
+        m,
+        pp,
+        optPeriodic,
+        overhangs
+    },
+    optPeriodic = OptionValue[PeriodicInterpolation];
+    h = Differences[First[dTrans]];
+    del = Differences[Last[dTrans]] / h;
+    overhangs = If[optPeriodic === False, {1, -1}, {-1, 1}];
+    (* Note that overhangs in Partition and ListConvolve are defined differently*)
+    pp = Dot @@@
+        Transpose[
+            MapAt[Reverse, Map[Partition[#, 2, 1, {-1, 1}] &, {h, del}], {1, All}]] /
+        ListConvolve[{1, 1}, h, -1 * overhangs];
+    If[optPeriodic === True,
+        del = ArrayPad[del, 1, "Periodic"]
+    ];
+    m = ListConvolve[{1, 1}, 2 UnitStep[del] - 1] *
+        MapThread[Min, {Partition[Abs[del], 2, 1], Abs[pp] / 2}];
+    Interpolation[
+        {{#1}, ##2} & @@@ Transpose[Append[dTrans,
+            If[optPeriodic === True,
+                m,
+                Flatten[{
+                    steffenEnds[#[[{1, 2}]] & /@ {h, del}],
                     m,
-                    Flatten[{
-                        steffenEnds[#[[{1, 2}]] & /@ {h, del}],
-                        m,
-                        steffenEnds[#[[{-1, -2}]] & /@ {h, del}]
-                    }]
-                ]
-            ]],
-            PeriodicInterpolation -> optPeriodic]
-    ]
+                    steffenEnds[#[[{-1, -2}]] & /@ {h, del}]
+                }]
+            ]
+        ]],
+        PeriodicInterpolation -> optPeriodic]
+]
 
 (* ::Section:: *)
 (* Dynamic Visualizations *)
 
-dynamicModel[] := dynamicModel[{1.0, 0.5, 2.0, 0.07}];
-dynamicModel[{\[Mu]Init_, \[Sigma]Init_, \[Gamma]Init_, \[Alpha]Init_}] := Block[
+FoveaModelManipulate[] := FoveaModelManipulate[{1.0, 0.5, 2.0, 0.07}];
+FoveaModelManipulate[{\[Mu]Init_, \[Sigma]Init_, \[Gamma]Init_, \[Alpha]Init_}] := Block[
     {
         \[Mu], \[Sigma], \[Gamma], \[Alpha], x
     },
     With[
         {
             m = model[\[Mu], \[Sigma], \[Gamma], \[Alpha], x],
-            pRanges = "ParameterRanges" /. Options[processOCTFile]
+            pRanges = "ParameterRanges" /. Options[FindFoveaModelParameters]
         },
         Manipulate[
             Plot[m, {x, 0, 3},
@@ -470,8 +469,6 @@ dynamicModel[{\[Mu]Init_, \[Sigma]Init_, \[Gamma]Init_, \[Alpha]Init_}] := Block
             {{\[Alpha], \[Alpha]Init, "\[Alpha]" }, pRanges[[4, 1]], pRanges[[4, 2]]}]
     ]
 ];
-
-
 
 End[];
 

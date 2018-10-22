@@ -14,17 +14,17 @@
 
 BeginPackage["FoveaAnalysis`Characteristics`", {"FoveaAnalysis`Modeling`"}];
 
-foveaCharacteristic::usage = "foveaCharacteristic[charact_String] returns a function of foveal parameters and possibly r to calculate a specific foveal characteristic. The complete list of all available characteristics can be accessed by IPCUFovealCharacteristic[].";
-foveaRadius::usage = "foveaRadius[{m, s, g, a}, opt] calculates the radius where a certain percentage of the foveal bowl area is reached. The percentage can be adjusted with the \"Percentage\" option (default is 0.95). The foveal bowl area is the area from r=0 to the rim (which is the maximum of the foveal curve).";
-directionalValues::usage = "IPCUGetDirectionalParameters[prop, \"Parameters\" | \"Errors\"] extracts the 4 anatomical directions from a set radially fitted foveas.";
-foveaCFST::usage = "foveaCFST[prop, opt] calculated the Central Retinal Thickness as mean of the thicknisses inside the 1mm central radius.";
+FoveaCharacteristic::usage = "FoveaCharacteristic[characteristic_String] returns a function of foveal parameters and possibly r to calculate a specific foveal characteristic. The complete list of all available characteristics can be accessed by FoveaCharacteristic[].";
+FoveaRadius::usage = "FoveaRadius[{m, s, g, a}, opt] calculates the radius where a certain percentage of the foveal bowl area is reached. The percentage can be adjusted with the \"Percentage\" option (default is 0.95). The foveal bowl area is the area from r=0 to the rim (which is the maximum of the foveal curve).";
+DirectionalValues::usage = "IPCUGetDirectionalParameters[prop, \"Parameters\" | \"Errors\"] extracts the 4 anatomical directions from a set radially fitted foveas.";
+FoveaCFST::usage = "FoveaCFST[prop, opt] calculated the Central Retinal Thickness as mean of the thicknesses inside the 1mm central radius.";
 
 Begin["`Private`"];
 
 (* ::Section:: *)
 (*Calculation of Fovea properties from parameter values*)
 
-foveaCharacteristic[Properties] = {
+FoveaCharacteristic[Properties] = {
     "Slope",
     "Curvature",
     "MaximumPoint",
@@ -34,29 +34,29 @@ foveaCharacteristic[Properties] = {
     "Area",
     "BowlArea"
 };
-foveaCharacteristic[] := foveaCharacteristic[Properties];
-foveaCharacteristic["Slope"] := Block[{m, s, g, a, r}, Function[{m, s, g, a, r}, Exp[-m r^g] * g * m * r^(g - 1) * (a + (1 - m * r^g) * s^2)]];
-foveaCharacteristic["Curvature"] := Function[{m, s, g, a, r},
+FoveaCharacteristic[] := FoveaCharacteristic[Properties];
+FoveaCharacteristic["Slope"] := Block[{m, s, g, a, r}, Function[{m, s, g, a, r}, Exp[-m r^g] * g * m * r^(g - 1) * (a + (1 - m * r^g) * s^2)]];
+FoveaCharacteristic["Curvature"] := Function[{m, s, g, a, r},
     Exp[-m * r^g] * g * m * r^(g - 2) * (a * (-1 + g - g * m * r^g) + (-1 + m * r^g + g * (1 + m * r^g * (-3 + m * r^g))) * s^2)
 ];
-foveaCharacteristic["MaximumPoint"] := Function[{m, s, g, a},
+FoveaCharacteristic["MaximumPoint"] := Function[{m, s, g, a},
     With[{r = (-((-a - s^2) / (m * s^2)))^(1 / g)},
-        {r, foveaModel[m, s, g, a, r]}
+        {r, FoveaModel[m, s, g, a, r]}
     ]
 ];
-foveaCharacteristic["TurningPoint1"] := Function[{m, s, g, a},
-    With[{rturn = (((-m) * ((-a) * g + s^2 - 3 * g * s^2) - m * Sqrt[a^2 * g^2 + 2 * a * g *
+FoveaCharacteristic["TurningPoint1"] := Function[{m, s, g, a},
+    With[{rTurn = (((-m) * ((-a) * g + s^2 - 3 * g * s^2) - m * Sqrt[a^2 * g^2 + 2 * a * g *
         s^2 + 2 * a * g^2 * s^2 + s^4 - 2 * g * s^4 + 5 * g^2 * s^4]) / (g * m^2 * s^2))^(1 / g) / 2^g^(-1)},
-        {rturn, foveaModel[m, s, g, a, rturn]}
+        {rTurn, FoveaModel[m, s, g, a, rTurn]}
     ]
 ];
-foveaCharacteristic["TurningPoint2"] := Function[{m, s, g, a},
-    With[{rturn = (((-m) * ((-a) * g + s^2 - 3 * g * s^2) + m * Sqrt[a^2 * g^2 + 2 * a * g *
+FoveaCharacteristic["TurningPoint2"] := Function[{m, s, g, a},
+    With[{rTurn = (((-m) * ((-a) * g + s^2 - 3 * g * s^2) + m * Sqrt[a^2 * g^2 + 2 * a * g *
         s^2 + 2 * a * g^2 * s^2 + s^4 - 2 * g * s^4 + 5 * g^2 * s^4]) / (g * m^2 * s^2))^(1 / g) / 2^g^(-1)},
-        {rturn, foveaModel[m, s, g, a, rturn]}
+        {rTurn, FoveaModel[m, s, g, a, rTurn]}
     ]
 ];
-foveaCharacteristic["Steepness"] := Function[{m, s, g, a},
+FoveaCharacteristic["Steepness"] := Function[{m, s, g, a},
     (-E^((-m) * (((a * g + (-1 + 3 * g) * s^2 -
         Sqrt[a^2 * g^2 + 2 * a * g * (1 + g) * s^2 + (1 + g * (-2 + 5 * g)) * s^4]) / (g * m *
         s^2))^(1 / g) / 2^g^(-1))^g)) * g * m * (((a * g + (-1 + 3 * g) * s^2 -
@@ -65,11 +65,11 @@ foveaCharacteristic["Steepness"] := Function[{m, s, g, a},
         Sqrt[a^2 * g^2 + 2 * a * g * (1 + g) * s^2 + (1 + g * (-2 + 5 * g)) * s^4]) /
         (g * m * s^2))^(1 / g) / 2^g^(-1))^g))
 ];
-foveaCharacteristic["Area"] := Function[{m, s, g, a, r},
+FoveaCharacteristic["Area"] := Function[{m, s, g, a, r},
     (g * r * (a * g - s^2 / E^(m * r^g)) + r * (a * g - s^2) * ExpIntegralE[(-1 + g) / g, m * r^g] +
         (((-a) * g + s^2) * Gamma[1 / g]) / m^g^(-1)) / g^2
 ];
-foveaCharacteristic["BowlArea"] := Function[{m, s, g, a},
+FoveaCharacteristic["BowlArea"] := Function[{m, s, g, a},
     (1 / g^2) * ((g * ((a + s^2) / (m * s^2))^(1 / g) * ((-a) * g + s^2 +
         g * m * s^2 * (((a + s^2) / (m * s^2))^(1 / g))^g)) /
         E^(m * (((a + s^2) / (m * s^2))^(1 / g))^g) + ((a + s^2) / (m * s^2))^(1 /
@@ -96,7 +96,7 @@ bisectionRootFind[rootFunc_, xStart_, xEnd_] :=
         fmid = rootFunc[x2];
 
         If[f * fmid > 0,
-            Message[IPCU::nobrack];
+            Message[bisectionRootFind::nobrack];
             Return[xStart]
         ];
 
@@ -118,25 +118,25 @@ bisectionRootFind[rootFunc_, xStart_, xEnd_] :=
         Message[$IterationLimit::itlim, $IterationLimit];
     ];
 
-Options[foveaRadius] = {
+Options[FoveaRadius] = {
     "Percentage" -> 0.95
 };
 
 
-foveaRadius::nobrack = "Interval boundaries don't have distinct signs. Cannot determine root.";
-foveaRadius::perc = "The \"Percentage\" option must be a number 0 < p < 1. Resetting it to 0.95.";
-foveaRadius[{m_?NumericQ, s_?NumericQ, g_?NumericQ, a_?NumericQ}, OptionsPattern[]] :=
+FoveaRadius::nobrack = "Interval boundaries don't have distinct signs. Cannot determine root.";
+FoveaRadius::perc = "The \"Percentage\" option must be a number 0 < p < 1. Resetting it to 0.95.";
+FoveaRadius[{m_?NumericQ, s_?NumericQ, g_?NumericQ, a_?NumericQ}, OptionsPattern[]] :=
     Module[
         {
             r,
-            rrim = First[foveaCharacteristic["MaximumPoint"][m, s, g, a]],
+            rrim = First[FoveaCharacteristic["MaximumPoint"][m, s, g, a]],
             solution,
             percentage,
             rootFunc
         },
         percentage = OptionValue["Percentage"];
         If[Not@TrueQ[0 < percentage < 1],
-            Message[foveaRadius::perc];
+            Message[FoveaRadius::perc];
             percentage = 0.95;
         ];
         rootFunc =
@@ -161,13 +161,13 @@ foveaRadius[{m_?NumericQ, s_?NumericQ, g_?NumericQ, a_?NumericQ}, OptionsPattern
 (* ::Section:: *)
 (*Getting parameter or error values in anatomical directions*)
 
-directionalValues::odd = "Transforming parameters into anatomical directions works only if the number of fitted directions is a multiple of 4. The provided dataset contains `1` directions.";
+DirectionalValues::odd = "Transforming parameters into anatomical directions works only if the number of fitted directions is a multiple of 4. The provided dataset contains `1` directions.";
 
-directionalValues[p_Association, acc___] := Thread[
+DirectionalValues[p_Association, acc___] := Thread[
     {"Nasal", "Superior", "Temporal", "Inferior"} ->
-        Transpose@Part[directionalValues[#, acc] & /@ List @@ p, All, All, -1]
+        Transpose@Part[DirectionalValues[#, acc] & /@ List @@ p, All, All, -1]
 ];
-directionalValues[p_Association, accessor_ : "Parameters"] := Module[
+DirectionalValues[p_Association, accessor_ : "Parameters"] := Module[
     {
         eye = p["Eye"],
         nDirs = Length[p[accessor]],
@@ -176,7 +176,7 @@ directionalValues[p_Association, accessor_ : "Parameters"] := Module[
     },
 
     If[Mod[Length[values], 4] =!= 0 ,
-        Message[directionalValues::odd, Length[values]];
+        Message[DirectionalValues::odd, Length[values]];
         Abort[]
     ];
     If[eye === Left, values = Reverse[RotateLeft[values, Length[values] / 2 + 1]]];
@@ -185,7 +185,7 @@ directionalValues[p_Association, accessor_ : "Parameters"] := Module[
     ]
 ];
 
-Options[foveaCFST] = {
+Options[FoveaCFST] = {
     "Radius" -> .5,
     "NumberOfRadialDivisions" -> 10
 };
@@ -205,8 +205,8 @@ Options[foveaCFST] = {
 *)
 getRadiiForCFST[nd_, nr_, rcfst_] := Table[Sqrt[((n*nd + 1)/(nd*nr + 1))*rcfst^2], {n, 0, nr}];
 
-foveaCFST::warg = "Options are set wrong. Using radius = 0.5 and nr = 10 instead";
-foveaCFST[p_Association, OptionsPattern[]] := Module[
+FoveaCFST::warg = "Options are set wrong. Using radius = 0.5 and nr = 10 instead";
+FoveaCFST[p_Association, OptionsPattern[]] := Module[
     {
         radii,
         centerHeight,
@@ -217,14 +217,14 @@ foveaCFST[p_Association, OptionsPattern[]] := Module[
     nr = OptionValue["NumberOfRadialDivisions"];
     rcfst = OptionValue["Radius"];
     If[Not@Element[nr, Integers] || Not@NumericQ[rcfst] || nr < 1 || rcfst <= 0,
-        Message[foveaCFST::warg];
+        Message[FoveaCFST::warg];
         nr = 10;
         rcfst = 0.5;
     ];
     {centerHeight, nd} = p[{"CentralHeight", {"Parameters", Length}}];
     radii = getRadiiForCFST[nd, nr, rcfst];
     Mean@Append[
-        Flatten[Table[centerHeight + foveaModel[##, r], {r, radii}] & @@@ p["Parameters"]],
+        Flatten[Table[centerHeight + FoveaModel[##, r], {r, radii}] & @@@ p["Parameters"]],
         centerHeight
     ]
 ];
