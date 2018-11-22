@@ -12,6 +12,7 @@ FindFoveaModelParameters::usage = "FindFoveaModelParameters[properties] finds th
     "scan exported in raw HSF format that must contain the segmentation for the ILM and the RPE layer. " <>
     "Additionally, the properties need to include a \"Center\" value that specifies the position of the fovea pit.";
 FindFoveaCenter::usage = "FindFoveaCenter[volFile] tries to calculate the center of the fovea.";
+FoveaModelManipulate::usage = "FoveaModelManipulate[] presents a dynamically adjustable model plot.";
 SteffenInterpolation::usage = "SteffenInterpolation[vector, opts] interpolates the vector using Steffen monotonic interpolation.";
 
 (* Options *)
@@ -116,7 +117,7 @@ OCTInterpolation[file_?HSFFileQ, prop_Association, OptionsPattern[]] := Module[
         rescaleQ = prop["RescaleOCTMagnification"],
         centralHeight = prop["CentralPixelHeight"],
         header = HSFInfo[file],
-        data = {"ILM", "RPE"} /. HSFLayerSegmentation[file],
+        data = {"ILM", "BM"} /. HSFLayerSegmentation[file],
         optParallel, scaleZ, sx, sy, scanFocus
     },
 
@@ -184,7 +185,7 @@ retinalHeight := retinalHeight = Compile[
     Parallelization -> True
 ];
 
-FindFoveaCenter[vol_?HSFFileQ] := FindFoveaCenter @@ Transpose[{"RPE", "ILM"} /.
+FindFoveaCenter[vol_?HSFFileQ] := FindFoveaCenter @@ Transpose[{"BM", "ILM"} /.
     HSFLayerSegmentation[vol]
 ];
 
@@ -208,6 +209,7 @@ FindFoveaCenter[rpe_?(MatrixQ[#, NumberQ] &), ilm_?(MatrixQ[#, NumberQ] &)] := M
         <|"Center" -> res, "CentralPixelHeight" -> Extract[rpe, res] - Extract[ilm, res]|>
     ]
 ];
+
 
 
 (* ::Subsection:: *)
