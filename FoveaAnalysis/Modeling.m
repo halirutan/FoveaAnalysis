@@ -1,28 +1,15 @@
 (* Mathematica Package *)
 
-BeginPackage["FoveaAnalysis`Modeling`", {"HSF`"}];
-
-
-(* Functions *)
-FoveaModel::usage = "FoveaModel[\[Mu], \[Sigma], \[Gamma], \[Alpha], x] returns the model function for the fovea.";
-OCTInterpolation::usage = "OCTInterpolation[prop, opt] uses the information of a foveal fit property file to interpolate the retinal surface that is used in the model-fit." <>
-    "For this, the properties \"VolFile\", \"Center\" and \"CentralPixelHeight\" must be present in the property file.";
-FindFoveaModelParameters::usage = "FindFoveaModelParameters[properties] finds the best fitting fovea model parameters for the dataset. " <>
-    "\"properties\" is an association that must contain a valid entry for \"VolFile\" that specifies the Heidelberg OCT " <>
-    "scan exported in raw HSF format that must contain the segmentation for the ILM and the RPE layer. " <>
-    "Additionally, the properties need to include a \"Center\" value that specifies the position of the fovea pit.";
-FindFoveaCenter::usage = "FindFoveaCenter[volFile] tries to calculate the center of the fovea.";
-FoveaModelManipulate::usage = "FoveaModelManipulate[] presents a dynamically adjustable model plot.";
-SteffenInterpolation::usage = "SteffenInterpolation[vector, opts] interpolates the vector using Steffen monotonic interpolation.";
-
-(* Options *)
-
-Begin[ "`Private`" ];
+Package["FoveaAnalysis`"]
+PackageImport["HSF`"]
 
 (* ::Subsection:: *)
 (* The mathematical model used *)
 
 model[m_, s_, g_, a_, x_] := (x^g * m * s^2) * Exp[- x^g * m] + a (1 - Exp[- x^g * m]);
+
+PackageExport["FoveaModel"]
+FoveaModel::usage = "FoveaModel[\[Mu], \[Sigma], \[Gamma], \[Alpha], x] returns the model function for the fovea.";
 FoveaModel[m_, s_, g_, a_, r_] := model[m, s, g, a, r];
 FoveaModel[{m_, s_, g_, a_}, r_] := model[m, s, g, a, r];
 
@@ -102,10 +89,12 @@ With[{selector = If[Abs[#1] < 1000 && Abs[#2] > 1000, #1, #2] &},
 garwayHeathRescale[corneaAntR1_, ametropia_] := 1 / (17.21 / corneaAntR1 + 1.247 + ametropia / 17.455);
 
 
+PackageExport["OCTInterpolation"]
+OCTInterpolation::usage = "OCTInterpolation[prop, opt] uses the information of a foveal fit property file to interpolate the retinal surface that is used in the model-fit." <>
+    "For this, the properties \"VolFile\", \"Center\" and \"CentralPixelHeight\" must be present in the property file.";
 Options[OCTInterpolation] = {
     "InterpolateParallel" -> False
 };
-
 
 OCTInterpolation[prop_Association, opts : OptionsPattern[]] := With[{file = prop["VolFile"]},
     OCTInterpolation[file, prop, opts] /; Not[MissingQ[file]]
@@ -185,6 +174,9 @@ retinalHeight := retinalHeight = Compile[
     Parallelization -> True
 ];
 
+
+PackageExport["FindFoveaCenter"]
+FindFoveaCenter::usage = "FindFoveaCenter[volFile] tries to calculate the center of the fovea.";
 FindFoveaCenter[vol_?HSFFileQ] := FindFoveaCenter @@ Transpose[{"BM", "ILM"} /.
     HSFLayerSegmentation[vol]
 ];
@@ -214,6 +206,12 @@ FindFoveaCenter[rpe_?(MatrixQ[#, NumberQ] &), ilm_?(MatrixQ[#, NumberQ] &)] := M
 
 (* ::Subsection:: *)
 (*Processing the fitting of an a fovea OCT dataset*)
+
+PackageExport["FindFoveaModelParameters"]
+FindFoveaModelParameters::usage = "FindFoveaModelParameters[properties] finds the best fitting fovea model parameters for the dataset. " <>
+    "\"properties\" is an association that must contain a valid entry for \"VolFile\" that specifies the Heidelberg OCT " <>
+    "scan exported in raw HSF format that must contain the segmentation for the ILM and the RPE layer. " <>
+    "Additionally, the properties need to include a \"Center\" value that specifies the position of the fovea pit.";
 
 Options[FindFoveaModelParameters] = {
     "PropertiesPath" -> Automatic,
@@ -405,11 +403,15 @@ $foveaHeightAsPixelValueWithCenter := $foveaHeightAsPixelValueWithCenter = Compi
 (* ::Section:: *)
 (* Monotonic interpolants *)
 
+steffenEnds[{{h1_, h2_}, {d1_, d2_}}] := With[{p = d1 + h1 (d1 - d2) / (h1 + h2)}, (Sign[p] + Sign[d1]) Min[ Abs[p] / 2, Abs[d1]]];
+
+PackageExport["SteffenInterpolation"]
+SteffenInterpolation::usage = "SteffenInterpolation[vector, opts] interpolates the vector using Steffen monotonic interpolation.";
+
 Options[SteffenInterpolation] := {
     PeriodicInterpolation -> False
 };
 
-steffenEnds[{{h1_, h2_}, {d1_, d2_}}] := With[{p = d1 + h1 (d1 - d2) / (h1 + h2)}, (Sign[p] + Sign[d1]) Min[ Abs[p] / 2, Abs[d1]]];
 SteffenInterpolation[data_?(VectorQ[#, NumericQ] &), opts___?OptionQ] := SteffenInterpolation[Transpose[{Range[Length[data]], data}], opts];
 SteffenInterpolation[data_?MatrixQ, OptionsPattern[]] := Module[
     {
@@ -452,6 +454,8 @@ SteffenInterpolation[data_?MatrixQ, OptionsPattern[]] := Module[
 (* ::Section:: *)
 (* Dynamic Visualizations *)
 
+PackageExport["FoveaModelManipulate"]
+FoveaModelManipulate::usage = "FoveaModelManipulate[] presents a dynamically adjustable model plot.";
 FoveaModelManipulate[] := FoveaModelManipulate[{1.0, 0.5, 2.0, 0.07}];
 FoveaModelManipulate[{\[Mu]Init_, \[Sigma]Init_, \[Gamma]Init_, \[Alpha]Init_}] := Block[
     {
@@ -472,6 +476,3 @@ FoveaModelManipulate[{\[Mu]Init_, \[Sigma]Init_, \[Gamma]Init_, \[Alpha]Init_}] 
     ]
 ];
 
-End[];
-
-EndPackage[];

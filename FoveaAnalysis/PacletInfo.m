@@ -4,5 +4,5 @@ Paclet[
   MathematicaVersion -> "11+",
   Description -> "Package for analysing foveal structures from OCT data",
   Creator -> "Patrick Scheibe <patrick@halirutan.de>",
-  Extensions -> {{"Kernel", Context -> "FoveaAnalysis`"}}
+  Extensions -> {{"Kernel", Root -> ".", Context -> "FoveaAnalysis`"}}
 ]

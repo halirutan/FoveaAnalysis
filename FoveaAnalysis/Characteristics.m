@@ -12,18 +12,14 @@
 (* :Keywords: *)
 (* :Discussion: *)
 
-BeginPackage["FoveaAnalysis`Characteristics`", {"FoveaAnalysis`Modeling`"}];
-
-FoveaCharacteristic::usage = "FoveaCharacteristic[characteristic_String] returns a function of foveal parameters and possibly r to calculate a specific foveal characteristic. The complete list of all available characteristics can be accessed by FoveaCharacteristic[].";
-FoveaRadius::usage = "FoveaRadius[{m, s, g, a}, opt] calculates the radius where a certain percentage of the foveal bowl area is reached. The percentage can be adjusted with the \"Percentage\" option (default is 0.95). The foveal bowl area is the area from r=0 to the rim (which is the maximum of the foveal curve).";
-DirectionalValues::usage = "IPCUGetDirectionalParameters[prop, \"Parameters\" | \"Errors\"] extracts the 4 anatomical directions from a set radially fitted foveas.";
-FoveaCFST::usage = "FoveaCFST[prop, opt] calculated the Central Retinal Thickness as mean of the thicknesses inside the 1mm central radius.";
-
-Begin["`Private`"];
+Package["FoveaAnalysis`"]
 
 (* ::Section:: *)
 (*Calculation of Fovea properties from parameter values*)
 
+PackageExport["FoveaCharacteristic"]
+FoveaCharacteristic::usage = "FoveaCharacteristic[characteristic_String] returns a function of foveal parameters and " <>
+    "possibly r to calculate a specific foveal characteristic. The complete list of all available characteristics can be accessed by FoveaCharacteristic[].";
 FoveaCharacteristic[Properties] = {
     "Slope",
     "Curvature",
@@ -118,10 +114,12 @@ bisectionRootFind[rootFunc_, xStart_, xEnd_] :=
         Message[$IterationLimit::itlim, $IterationLimit];
     ];
 
+PackageExport["FoveaRadius"]
+FoveaRadius::usage = "FoveaRadius[{m, s, g, a}, opt] calculates the radius where a certain percentage of the foveal bowl area is reached. The percentage can be adjusted with the \"Percentage\" option (default is 0.95). The foveal bowl area is the area from r=0 to the rim (which is the maximum of the foveal curve).";
+
 Options[FoveaRadius] = {
     "Percentage" -> 0.95
 };
-
 
 FoveaRadius::nobrack = "Interval boundaries don't have distinct signs. Cannot determine root.";
 FoveaRadius::perc = "The \"Percentage\" option must be a number 0 < p < 1. Resetting it to 0.95.";
@@ -161,6 +159,8 @@ FoveaRadius[{m_?NumericQ, s_?NumericQ, g_?NumericQ, a_?NumericQ}, OptionsPattern
 (* ::Section:: *)
 (*Getting parameter or error values in anatomical directions*)
 
+PackageExport["DirectionalValues"]
+DirectionalValues::usage = "IPCUGetDirectionalParameters[prop, \"Parameters\" | \"Errors\"] extracts the 4 anatomical directions from a set radially fitted foveas.";
 DirectionalValues::odd = "Transforming parameters into anatomical directions works only if the number of fitted directions is a multiple of 4. The provided dataset contains `1` directions.";
 
 DirectionalValues[p_Association, acc___] := Thread[
@@ -185,10 +185,6 @@ DirectionalValues[p_Association, accessor_ : "Parameters"] := Module[
     ]
 ];
 
-Options[FoveaCFST] = {
-    "Radius" -> .5,
-    "NumberOfRadialDivisions" -> 10
-};
 
 (*  This helperfunction calculates the correct radii that are required for an approximate equal distribution of
     sampling points in the circular scheme of the CSFT.
@@ -205,7 +201,15 @@ Options[FoveaCFST] = {
 *)
 getRadiiForCFST[nd_, nr_, rcfst_] := Table[Sqrt[((n*nd + 1)/(nd*nr + 1))*rcfst^2], {n, 0, nr}];
 
+PackageExport["FoveaCFST"]
+FoveaCFST::usage = "FoveaCFST[prop, opt] calculated the Central Retinal Thickness as mean of the thicknesses inside the 1mm central radius.";
 FoveaCFST::warg = "Options are set wrong. Using radius = 0.5 and nr = 10 instead";
+
+Options[FoveaCFST] = {
+    "Radius" -> .5,
+    "NumberOfRadialDivisions" -> 10
+};
+
 FoveaCFST[p_Association, OptionsPattern[]] := Module[
     {
         radii,
@@ -228,7 +232,3 @@ FoveaCFST[p_Association, OptionsPattern[]] := Module[
         centerHeight
     ]
 ];
-
-End[];
-
-EndPackage[]
