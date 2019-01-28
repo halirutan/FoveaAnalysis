@@ -1,2 +1,2 @@
-OCTResource/*.vol filter=lfs diff=lfs merge=lfs -text
-OCTResource/*.nb filter=lfs diff=lfs merge=lfs -text
+Example/*.vol filter=lfs diff=lfs merge=lfs -text
+Example/*.nb filter=lfs diff=lfs merge=lfs -text

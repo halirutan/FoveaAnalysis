@@ -106,7 +106,7 @@ OCTInterpolation[file_?HSFFileQ, prop_Association, OptionsPattern[]] := Module[
         rescaleQ = prop["RescaleOCTMagnification"],
         centralHeight = prop["CentralPixelHeight"],
         header = HSFInfo[file],
-        data = {"ILM", "BM"} /. HSFLayerSegmentation[file],
+        data = {"ILM", "RPE"} /. HSFLayerSegmentation[file],
         optParallel, scaleZ, sx, sy, scanFocus
     },
 
@@ -177,7 +177,7 @@ retinalHeight := retinalHeight = Compile[
 
 PackageExport["FindFoveaCenter"]
 FindFoveaCenter::usage = "FindFoveaCenter[volFile] tries to calculate the center of the fovea.";
-FindFoveaCenter[vol_?HSFFileQ] := FindFoveaCenter @@ Transpose[{"BM", "ILM"} /.
+FindFoveaCenter[vol_?HSFFileQ] := FindFoveaCenter @@ Transpose[{"RPE", "ILM"} /.
     HSFLayerSegmentation[vol]
 ];
 

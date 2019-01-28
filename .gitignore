@@ -1,3 +1,4 @@
 # Created by .ignore support plugin (hsz.mobi)
 *.paclet
-.idea/workspace.xml
+.idea
+FoveaAnalysis.iml
