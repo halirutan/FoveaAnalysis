@@ -59,7 +59,7 @@ ExtractMarcusInfo[file_?FileExistsQ] := Module[{expr},
 ];
 
 
-PackageScope["ExtractInfo"]
+PackageExport["ExtractInfo"]
 ExtractInfo::usage = "ExtractInfo[marcusResultFile, octPath] collects all information for modeling.";
 ExtractInfo::noVol = "No Volume file could be found in results file ``";
 ExtractInfo[file_, octPath_] := Module[{marcusInfo, octInfo, octFile},
